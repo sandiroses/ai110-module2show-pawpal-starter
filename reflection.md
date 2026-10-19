@@ -4,18 +4,23 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
-
 **Three core actions a user should be able to perform:**
 1. Add a pet and set how much time I have today.
 2. Add care tasks (like walks or feeding) with a time, duration, and priority.
 3. See today's schedule, sorted by time, with warnings if tasks overlap.
 
+My UML has four classes connected in a chain: an Owner has many Pets, each Pet has many Tasks, and a Scheduler reads from the Owner to plan the day.
+
+- **Task** (dataclass): one care activity. Holds the title, time ("HH:MM"), duration, priority, frequency (once/daily/weekly), due date, and whether it's completed. It can mark itself complete and create its next occurrence for recurring tasks.
+- **Pet** (dataclass): stores a pet's name, species, and its list of tasks. It can add, remove, and return its tasks.
+- **Owner** (dataclass): stores the owner's name, how many minutes they have available today, and their pets. Its `get_all_tasks()` method collects every pet's tasks into one list.
+- **Scheduler**: the "brain." It gets all tasks through `Owner.get_all_tasks()`, then sorts them by time, filters them by pet or completion status, detects conflicts, builds the daily plan, and explains it.
+
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+- I added a `pet_name` field to Task. Once the Scheduler combines every pet's tasks into one list, it can no longer tell which task belongs to which pet, so each task needs to carry its pet's name for filtering and display.
+- I named the Task fields `title`, `duration_minutes`, and `priority` to match the names the starter `app.py` already uses. This will make connecting the UI in Phase 3 much simpler.
+- An earlier draft had a separate `sort_by_priority()` method. I removed it to keep the design small and focused on the required features (sorting by time, filtering, conflicts, recurrence).
 
 ---
 
