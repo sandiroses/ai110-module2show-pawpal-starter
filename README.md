@@ -103,19 +103,35 @@ Completed tasks
 
 ## 🧪 Testing PawPal+
 
-```bash
-# Run the full test suite:
-pytest
+Run the full test suite from the project folder:
 
-# Run with coverage:
-pytest --cov
+```bash
+python -m pytest
 ```
+
+The 14 tests in `tests/test_pawpal.py` cover:
+
+- **Basics**: marking a task complete, adding tasks to a pet, and collecting tasks from all pets through the Owner.
+- **Sorting**: tasks added out of order come back in chronological order.
+- **Filtering**: by pet name and by completion status.
+- **Recurring tasks**: daily tasks repeat the next day, weekly tasks repeat 7 days later, and one-time tasks don't repeat.
+- **Conflict detection**: two tasks at the same time are flagged (even for different pets), and different times are not.
+- **Daily plan**: low-priority tasks are skipped when time runs out, and completed or future tasks are left out.
+- **Edge case**: pets with no tasks produce an empty plan instead of an error.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
+==================== test session starts ====================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.7.0
+collected 14 items
+
+tests\test_pawpal.py ..............                    [100%]
+
+==================== 14 passed in 0.07s =====================
 ```
+
+**Confidence level: (4/5).** Every core feature has passing tests, including edge cases. I'm holding back because conflict detection only catches tasks with the exact same start time, not overlapping durations, and the UI isn't covered by automated tests.
 
 ## 📐 Smarter Scheduling
 
