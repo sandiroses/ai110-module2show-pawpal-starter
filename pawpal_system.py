@@ -1,8 +1,10 @@
 """PawPal+ logic layer: classes for owners, pets, tasks, and scheduling."""
 
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 from typing import List, Optional
+
+PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
 @dataclass
@@ -22,8 +24,14 @@ class Task:
         self.completed = True
 
     def next_occurrence(self) -> Optional["Task"]:
-        """Return the next copy of a recurring task (implemented in Phase 4)."""
-        pass
+        """Return a fresh copy for the next day/week, or None if the task is one-time."""
+        if self.frequency == "daily":
+            days = 1
+        elif self.frequency == "weekly":
+            days = 7
+        else:
+            return None
+        return replace(self, due_date=self.due_date + timedelta(days=days), completed=False)
 
 
 @dataclass
@@ -59,6 +67,13 @@ class Owner:
         """Add a pet to this owner."""
         self.pets.append(pet)
 
+    def get_pet(self, name: str) -> Optional[Pet]:
+        """Return the pet with this name, or None if there isn't one."""
+        for pet in self.pets:
+            if pet.name == name:
+                return pet
+        return None
+
     def get_all_tasks(self) -> List[Task]:
         """Return every task from every pet in one list."""
         all_tasks = []
@@ -73,29 +88,80 @@ class Scheduler:
     def __init__(self, owner: Owner):
         """Store the owner whose pets' tasks will be scheduled."""
         self.owner = owner
+        self.skipped: List[Task] = []
 
     def sort_by_time(self, tasks: List[Task]) -> List[Task]:
-        """Return tasks ordered from earliest to latest time."""
+        """Return tasks ordered from earliest to latest "HH:MM" time."""
         return sorted(tasks, key=lambda task: task.time)
 
     def filter_tasks(self, pet_name: Optional[str] = None,
                      completed: Optional[bool] = None) -> List[Task]:
-        """Filter tasks by pet or completion status (implemented in Phase 4)."""
-        pass
+        """Return the owner's tasks, optionally only for one pet and/or one completion status."""
+        result = []
+        for task in self.owner.get_all_tasks():
+            if pet_name is not None and task.pet_name != pet_name:
+                continue
+            if completed is not None and task.completed != completed:
+                continue
+            result.append(task)
+        return result
 
     def detect_conflicts(self, tasks: List[Task]) -> List[str]:
-        """Find tasks scheduled at the same time (implemented in Phase 4)."""
-        pass
+        """Return a warning for every time slot that has more than one task (exact time match)."""
+        by_time = {}
+        for task in tasks:
+            by_time.setdefault(task.time, []).append(task)
+
+        warnings = []
+        for slot, slot_tasks in sorted(by_time.items()):
+            if len(slot_tasks) > 1:
+                names = ", ".join(f"{t.title} ({t.pet_name})" for t in slot_tasks)
+                warnings.append(f"Conflict at {slot}: {names}")
+        return warnings
+
+    def mark_task_complete(self, task: Task) -> Optional[Task]:
+        """Complete a task; if it repeats, add its next occurrence to the same pet and return it."""
+        task.mark_complete()
+        next_task = task.next_occurrence()
+        if next_task is not None:
+            pet = self.owner.get_pet(task.pet_name)
+            if pet is not None:
+                pet.add_task(next_task)
+        return next_task
 
     def generate_daily_plan(self) -> List[Task]:
-        """Return today's unfinished tasks for all pets, sorted by time."""
+        """Pick today's unfinished tasks by priority until time runs out, then sort them by time."""
         today = date.today()
-        todays_tasks = [
+        candidates = [
             task for task in self.owner.get_all_tasks()
             if task.due_date == today and not task.completed
         ]
-        return self.sort_by_time(todays_tasks)
+        # Most important first; ties go to the earlier task.
+        candidates.sort(key=lambda t: (PRIORITY_RANK.get(t.priority, 1), t.time))
+
+        chosen, self.skipped = [], []
+        minutes_left = self.owner.available_minutes
+        for task in candidates:
+            if task.duration_minutes <= minutes_left:
+                chosen.append(task)
+                minutes_left -= task.duration_minutes
+            else:
+                self.skipped.append(task)
+        return self.sort_by_time(chosen)
 
     def explain_plan(self) -> str:
-        """Explain why tasks were chosen (implemented in Phase 4)."""
-        pass
+        """Explain which tasks made it into today's plan and why others were skipped."""
+        plan = self.generate_daily_plan()
+        used = sum(t.duration_minutes for t in plan)
+        lines = [
+            f"{len(plan)} task(s) fit into {used} of your "
+            f"{self.owner.available_minutes} available minutes.",
+            "Tasks were chosen by priority (high first), then ordered by time.",
+        ]
+        for task in self.skipped:
+            lines.append(
+                f"Skipped '{task.title}' for {task.pet_name}: needs "
+                f"{task.duration_minutes} min ({task.priority} priority) "
+                f"and there wasn't enough time left."
+            )
+        return "\n".join(lines)

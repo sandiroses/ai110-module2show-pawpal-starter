@@ -49,23 +49,56 @@ All backend logic lives in `pawpal_system.py`, built from four classes:
 - **Task** (dataclass): one care activity with a title, time ("HH:MM"), duration, priority, frequency, due date, and completion status. `mark_complete()` marks it done.
 - **Pet** (dataclass): holds a pet's name, species, and list of tasks. `add_task()` also tags each task with the pet's name so tasks can be traced back to their pet.
 - **Owner** (dataclass): holds the owner's name, available minutes, and pets. `get_all_tasks()` gathers every pet's tasks into one list.
-- **Scheduler**: the "brain." It pulls tasks from `Owner.get_all_tasks()` (so it works across all pets), keeps only today's unfinished tasks, and sorts them by time in `generate_daily_plan()`.
+- **Scheduler**: the "brain." It pulls tasks from `Owner.get_all_tasks()` (so it works across all pets) and handles sorting, filtering, conflicts, recurrence, and building the daily plan.
 
-`main.py` is a demo script that creates an owner with two pets and four tasks, then prints today's schedule.
+`main.py` is a demo script that creates an owner with two pets and six tasks, then shows every scheduler feature in the terminal.
 
 ## 🖥️ Sample Output
 
 Output from running `python main.py`:
 
 ```
+All tasks, sorted by time
+--------------------------------------------------
+  07:30  Luna   Breakfast      (5 min) [high] todo
+  08:00  Mochi  Morning walk   (30 min) [high] todo
+  08:00  Luna   Medication     (5 min) [medium] todo
+  12:00  Luna   Brush fur      (40 min) [low] todo
+  16:00  Mochi  Fetch          (20 min) [medium] todo
+  18:00  Mochi  Dinner         (10 min) [high] todo
+
+Only Luna's tasks
+--------------------------------------------------
+  07:30  Luna   Breakfast      (5 min) [high] todo
+  08:00  Luna   Medication     (5 min) [medium] todo
+  12:00  Luna   Brush fur      (40 min) [low] todo
+
+Conflict check
+--------------------------------------------------
+  WARNING: Conflict at 08:00: Morning walk (Mochi), Medication (Luna)
+
 Today's Schedule for Rosandi
-========================================
-  07:30  Luna   Breakfast      (5 min) [high]
-  08:00  Mochi  Morning walk   (30 min) [high]
-  12:00  Luna   Brush fur      (15 min) [low]
-  18:00  Mochi  Dinner         (10 min) [high]
-========================================
-4 tasks planned
+--------------------------------------------------
+  07:30  Luna   Breakfast      (5 min) [high] todo
+  08:00  Mochi  Morning walk   (30 min) [high] todo
+  08:00  Luna   Medication     (5 min) [medium] todo
+  16:00  Mochi  Fetch          (20 min) [medium] todo
+  18:00  Mochi  Dinner         (10 min) [high] todo
+
+Why this plan?
+--------------------------------------------------
+5 task(s) fit into 70 of your 90 available minutes.
+Tasks were chosen by priority (high first), then ordered by time.
+Skipped 'Brush fur' for Luna: needs 40 min (low priority) and there wasn't enough time left.
+
+Recurring task
+--------------------------------------------------
+  Completed 'Morning walk' (due 2026-10-18)
+  Next 'Morning walk' automatically created for 2026-10-19
+
+Completed tasks
+--------------------------------------------------
+  08:00  Mochi  Morning walk   (30 min) [high] done
 ```
 
 ## 🧪 Testing PawPal+
@@ -86,14 +119,13 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.sort_by_time()` | Uses `sorted()` with a lambda key on the "HH:MM" string. Zero-padded times sort correctly as text, so "07:30" comes before "18:00". |
+| Filtering | `Scheduler.filter_tasks(pet_name, completed)` | Returns tasks for one pet, by completion status, or both. Either filter can be left out. |
+| Time budget | `Scheduler.generate_daily_plan()`, `Scheduler.explain_plan()` | Picks today's unfinished tasks by priority (high → low, earlier first on ties) until the owner's available minutes run out, then orders the plan by time. `explain_plan()` says which tasks were skipped and why. |
+| Conflict handling | `Scheduler.detect_conflicts()` | Groups tasks by start time and returns a warning message for any time slot with 2+ tasks, across all pets. It warns instead of crashing. |
+| Recurring tasks | `Task.next_occurrence()`, `Scheduler.mark_task_complete()` | When a daily or weekly task is completed, a new copy is created for the next day (+1) or week (+7) using `timedelta` and added to the same pet. One-time tasks don't repeat. |
 
 ## 📸 Demo Walkthrough
 
